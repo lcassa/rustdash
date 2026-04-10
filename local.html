@@ -1,0 +1,218 @@
+<!doctype html>
+<html>
+    <head>
+        <link
+            href="https://fonts.googleapis.com/css2?family=Advent+Pro:wght@100;200;300;400;500;600;700&display=swap"
+            rel="stylesheet"
+        />
+        <link
+            rel="stylesheet"
+            type="text/css"
+            href="https://cdn.jsdelivr.net/npm/@phosphor-icons/web@2.1.1/src/regular/style.css"
+        />
+        <style>
+            :root {
+                --neutral-primary: #2c3e50;
+                --neutral-secondary: #7f8c8d;
+                --neutral-tertiary: #e1e1e1;
+                --color-cpu: #ff6b6b;
+                --color-disk: #4ecdc4;
+                --color-memory: #a78adb;
+            }
+
+            body {
+                background: rgba(255, 255, 255, 0.7);
+                margin: 0;
+                padding: 0;
+                height: 100vh;
+                width: 100vw;
+                font-family: "Advent Pro";
+                color: var(--neutral-primary);
+            }
+            .container {
+                display: flex;
+                flex-direction: column;
+                text-align: center;
+                justify-content: space-evenly;
+                height: 100%;
+            }
+            .time {
+                font-size: 128px;
+            }
+            .date {
+                font-size: 64px;
+            }
+            .battery {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 32px;
+                gap: 4px;
+            }
+            .battery-status {
+                color: var(--neutral-secondary);
+                font-size: 20px;
+            }
+            .bar-indicator {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 32px;
+                gap: 16px;
+            }
+
+            progress {
+                -webkit-appearance: none;
+                border-radius: 4px;
+                height: 16px;
+                width: 416px;
+            }
+
+            ::-webkit-progress-bar {
+                background-color: var(--neutral-tertiary);
+                border-radius: 4px;
+            }
+
+            .cpu > ::-webkit-progress-value {
+                background-color: var(--color-cpu);
+                border-radius: 4px;
+            }
+            .memory > ::-webkit-progress-value {
+                background-color: var(--color-memory);
+                border-radius: 4px;
+            }
+            .disk > ::-webkit-progress-value {
+                background-color: var(--color-disk);
+                border-radius: 4px;
+            }
+            .performance-indicators {
+                display: flex;
+                flex-direction: column;
+                gap: 32px;
+            }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div id="date-time">
+                <div id="time" class="time">--</div>
+                <div id="date" class="date">--</div>
+            </div>
+            <article>
+                <div class="battery">
+                    <i class="ph ph-battery-vertical-high"></i>
+                    <span id="battery-percent" class="battery-percent"
+                        >--%</span
+                    >
+                </div>
+                <div id="battery-status" class="battery-status">Loading...</div>
+            </article>
+            <article class="performance-indicators">
+                <div class="cpu bar-indicator">
+                    <i class="ph ph-cpu"></i>
+                    <progress id="cpu-bar" value="0" max="100"></progress>
+                </div>
+                <div class="memory bar-indicator">
+                    <i class="ph ph-memory"></i>
+                    <progress id="memory-bar" value="0" max="100"></progress>
+                </div>
+                <div class="disk bar-indicator">
+                    <i class="ph ph-database"></i>
+                    <progress id="disk-bar" value="0" max="100"></progress>
+                </div>
+            </article>
+        </div>
+        <script>
+            class PropertyContentBinder {
+                constructor(elementId, property) {
+                    this.element = document.getElementById(elementId);
+                    this.property = property;
+                }
+
+                get value() {
+                    return this.element.getAttribute(this.property);
+                }
+
+                set value(newValue) {
+                    this.element.setAttribute(this.property, newValue);
+                }
+            }
+            class TextContentBinder {
+                constructor(elementId) {
+                    this.element = document.getElementById(elementId);
+                }
+
+                get value() {
+                    return this.element.textContent;
+                }
+
+                set value(newValue) {
+                    this.element.textContent = newValue;
+                }
+            }
+
+            function formatDate() {
+                const now = new Date();
+                const day = String(now.getDate()).padStart(2, "0"); // Pad with leading zero
+                const monthNames = [
+                    "Jan",
+                    "Feb",
+                    "Mar",
+                    "Apr",
+                    "May",
+                    "Jun",
+                    "Jul",
+                    "Aug",
+                    "Sep",
+                    "Oct",
+                    "Nov",
+                    "Dec",
+                ];
+                const month = monthNames[now.getMonth()];
+                const year = String(now.getFullYear()).slice(-2); // Get last two digits of year
+
+                return `${day} ${month} ${year}`;
+            }
+
+            function formatTime() {
+                const now = new Date();
+                const hours = String(now.getHours()).padStart(2, "0");
+                const minutes = String(now.getMinutes()).padStart(2, "0");
+                const seconds = String(now.getSeconds()).padStart(2, "0"); // Optional seconds
+                return `${hours}:${minutes}`; // or `${hours}:${minutes}` for just hours and minutes
+            }
+
+            // bind html with JS
+            const date = new TextContentBinder("date");
+            // immediately render date
+            date.value = formatDate();
+            const time = new TextContentBinder("time");
+            // immediately render time
+            time.value = formatTime();
+            const batteryPercent = new TextContentBinder("battery-percent");
+            const batteryStatus = new TextContentBinder("battery-status");
+            const cpuBar = new PropertyContentBinder("cpu-bar", "value");
+            const diskBar = new PropertyContentBinder("disk-bar", "value");
+            const memoryBar = new PropertyContentBinder("memory-bar", "value");
+
+            function updateSystemInfo(systemData) {
+                time.value = systemData.time;
+                date.value = systemData.date;
+                batteryPercent.value = systemData.battery.percent + " %";
+                batteryStatus.value = systemData.battery.status;
+                cpuBar.value = systemData.cpu_percent;
+                memoryBar.value = systemData.memory.percent;
+                diskBar.value = systemData.storage.percent;
+            }
+
+            function fetchSystemData() {
+                window.webkit.messageHandlers.systemUpdate.postMessage(
+                    "get_system_data",
+                );
+            }
+
+            // Update system info every second
+            setInterval(fetchSystemData, 1000);
+        </script>
+    </body>
+</html>
