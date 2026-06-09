@@ -113,6 +113,7 @@ fn get_storage_info() -> StorageInfo {
     }
 }
 
+
 fn collect_system_data(sys: &mut System) -> SystemData {
     sys.refresh_cpu();
     sys.refresh_memory();
