@@ -3,7 +3,7 @@ use webkit2gtk::{WebView, WebViewExt};
 use serde::Serialize;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use sysinfo::{Disks, System};
+use sysinfo::{CpuRefreshKind, Disks, MemoryRefreshKind, RefreshKind, System};
 use glib::ControlFlow;
 
 const HTML_CONTENT: &str = include_str!("../local.html");
@@ -147,8 +147,14 @@ fn start_system_monitor(webview: WebView) {
 
     // Background thread to collect system data
     std::thread::spawn(move || {
-        let mut sys = System::new_all();
-        sys.refresh_all();
+        // Apenas CPU e memoria: evita enumerar todos os processos no boot.
+        let mut sys = System::new_with_specifics(
+            RefreshKind::new()
+                .with_cpu(CpuRefreshKind::everything())
+                .with_memory(MemoryRefreshKind::everything()),
+        );
+        sys.refresh_cpu();
+        sys.refresh_memory();
 
         loop {
             let data = collect_system_data(&mut sys);
@@ -157,14 +163,30 @@ fn start_system_monitor(webview: WebView) {
         }
     });
 
-    // GTK main thread timer to update the webview
-    glib::timeout_add_local(Duration::from_secs(1), move || {
+    // Envia os dados atuais (se houver) para o webview.
+    fn push_update(webview: &WebView, system_data: &Arc<Mutex<Option<SystemData>>>) {
         if let Some(data) = system_data.lock().unwrap().clone() {
             if let Ok(json) = serde_json::to_string(&data) {
                 let script = format!("updateSystemInfo({});", json);
                 webview.run_javascript(&script, None::<&gio::Cancellable>, |_| {});
             }
         }
+    }
+
+    // Assim que o DOM termina de carregar, faz o primeiro paint imediatamente,
+    // em vez de esperar o primeiro tick de 1s do timer abaixo. E o que fazia as
+    // metricas demorarem a aparecer enquanto a data (calculada em JS no load) ja
+    // aparecia na hora.
+    let system_data_load = system_data.clone();
+    webview.connect_load_changed(move |webview, event| {
+        if event == webkit2gtk::LoadEvent::Finished {
+            push_update(webview, &system_data_load);
+        }
+    });
+
+    // GTK main thread timer to update the webview
+    glib::timeout_add_local(Duration::from_secs(1), move || {
+        push_update(&webview, &system_data);
         ControlFlow::Continue
     });
 }
@@ -172,13 +194,10 @@ fn start_system_monitor(webview: WebView) {
 fn build_ui() {
     let window = gtk::Window::new(gtk::WindowType::Toplevel);
     window.set_title("Webdash");
-    window.set_default_size(800, 600);
-
-    // Make window fullscreen
-    window.fullscreen();
-
-    // Keep window on top
-    window.set_keep_above(true);
+    // Tamanho ja na resolucao do monitor: o WebKit renderiza direto no tamanho
+    // final, sem re-render. O fullscreen real fica a cargo da window rule do
+    // Hyprland (windowrules.conf), evitando dupla negociacao de tamanho.
+    window.set_default_size(1920, 1200);
 
     // Remove decorations
     window.set_decorated(false);
@@ -218,6 +237,10 @@ fn build_ui() {
 }
 
 fn main() {
+    // Define o app_id (class no Wayland/Hyprland) de forma estavel para a
+    // window rule casar de forma confiavel. Precisa vir antes de gtk::init.
+    glib::set_prgname(Some("webdash"));
+
     gtk::init().expect("Failed to initialize GTK");
 
     build_ui();
