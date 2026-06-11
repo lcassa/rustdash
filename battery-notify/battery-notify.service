@@ -1,0 +1,8 @@
+[Unit]
+Description=Check battery level and notify at 10% and 5%
+
+[Service]
+Type=oneshot
+# Make sure notify-send can reach the session bus (%t = XDG_RUNTIME_DIR).
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=%t/bus
+ExecStart=%h/.local/bin/battery-notify.sh
